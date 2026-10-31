@@ -1,0 +1,29 @@
+[Unit]
+Description=Robo de padroes do Double da Blitz (alertas no Telegram)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=blitzbot
+WorkingDirectory=/opt/blitz-double-bot
+EnvironmentFile=/opt/blitz-double-bot/.env
+ExecStart=/usr/bin/node dist/src/index.js
+
+# Reinicia sempre: o robo precisa ficar 24h de pe.
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=blitz-double-bot
+
+# Endurecimento basico
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/blitz-double-bot/data
+
+[Install]
+WantedBy=multi-user.target

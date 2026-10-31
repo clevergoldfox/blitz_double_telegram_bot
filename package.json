@@ -1,0 +1,29 @@
+{
+  "name": "blitz-double-bot",
+  "version": "1.0.0",
+  "description": "Bot de alertas de padroes para o Double da Blitz, integrado ao Telegram",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.js",
+    "start": "node dist/src/index.js",
+    "dev": "npm run build && node dist/src/index.js",
+    "probe": "node dist/src/probe.js",
+    "test": "npm run build && node --test \"dist/tests/*.test.js\"",
+    "demo": "node dist/src/demo.js"
+  },
+  "dependencies": {
+    "dotenv": "16.4.5",
+    "grammy": "1.30.0",
+    "ws": "8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/ws": "8.5.13",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2"
+  }
+}
