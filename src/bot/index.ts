@@ -7,7 +7,7 @@ import { ResultSource } from '../sources/types';
 import { backtest } from '../engine/backtest';
 import { parsePattern, PatternSyntaxError } from '../engine/grammar';
 import { CommandError, parseNovo, readColor, readWhiteRule } from './parse-novo';
-import { Color, Pattern, WHITE_RULE_LABEL } from '../types';
+import { AlertMode, Color, Pattern, WHITE_RULE_LABEL } from '../types';
 import * as F from './format';
 
 export interface BotDeps {
@@ -40,6 +40,23 @@ export function createBot(deps: BotDeps): Bot {
 
   const reply = (ctx: Context, text: string) =>
     ctx.reply(text, { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+
+  // Toda mensagem recebida registra de onde veio. Na instalacao isso e o que
+  // permite descobrir o TELEGRAM_CHAT_ID pelo log, sem depender de o cliente
+  // copiar o numero certo de volta.
+  bot.use(async (ctx, next) => {
+    log.info(
+      {
+        chat: ctx.chat?.id,
+        tipo: ctx.chat?.type,
+        titulo: ctx.chat?.type === 'private' ? undefined : (ctx.chat as { title?: string } | undefined)?.title,
+        de: ctx.from?.id,
+        usuario: ctx.from?.username,
+      },
+      'mensagem recebida',
+    );
+    return next();
+  });
 
   // --- autorizacao ---
   // /id fica sempre liberado: e como o cliente descobre o proprio id na instalacao.
@@ -285,7 +302,43 @@ export function createBot(deps: BotDeps): Bot {
       [
         `<b>Ultimas ${rows.length} rodadas</b> (antiga → recente)`,
         '',
-        F.seqPretty(rows.map((r) => r.color)),
+        F.colorsPretty(rows.map((r) => r.color)),
+      ].join('\n'),
+    );
+  });
+
+  bot.command(['modo', 'privacidade'], async (ctx) => {
+    const arg = (ctx.match ?? '').trim().toLowerCase();
+    const atual = repos.settings.alertMode;
+
+    if (!arg) {
+      await reply(ctx, F.modoBlock(atual));
+      return;
+    }
+
+    const novo: AlertMode | null =
+      /^(publico|público|oculto|vender|revenda)$/.test(arg) ? 'publico'
+      : /^(completo|normal|privado|dono)$/.test(arg) ? 'completo'
+      : null;
+
+    if (novo === null) {
+      await reply(ctx, 'Use <code>/modo publico</code> ou <code>/modo completo</code>.');
+      return;
+    }
+
+    repos.settings.alertMode = novo;
+    log.info({ modo: novo }, 'modo de alerta alterado');
+
+    // Mostra o alerta de exemplo ja no formato novo: e a unica forma de o dono
+    // conferir o que o assinante dele vai ver antes de o padrao disparar.
+    const exemplo = repos.patterns.list({ activeOnly: true })[0];
+    await reply(
+      ctx,
+      [
+        F.modoBlock(novo),
+        ...(exemplo
+          ? ['', '<b>Exemplo do que sai agora:</b>', '', F.entryAlert(exemplo, repos.results.recent(3), repos.signals.scoreboard(exemplo.id, exemplo.name), novo)]
+          : []),
       ].join('\n'),
     );
   });

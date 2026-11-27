@@ -6,7 +6,7 @@ import { Engine, EngineEvent } from '../src/engine/engine';
 import { SimulatorSource } from '../src/sources/simulator';
 import { backtest } from '../src/engine/backtest';
 import { parsePattern } from '../src/engine/grammar';
-import { Color, GameResult, WhiteRule } from '../src/types';
+import { Color, colorOfRoll, GameResult, WhiteRule } from '../src/types';
 import * as F from '../src/bot/format';
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -33,7 +33,7 @@ test('ponta a ponta: simulador -> motor -> mensagem formatada', async () => {
   source.onResult((r: GameResult) => {
     for (const ev of engine.onResult(r)) {
       const sb = ev.kind === 'gap' ? null : repos.signals.scoreboard(ev.pattern.id, ev.pattern.name);
-      if (ev.kind === 'entry') mensagens.push(F.entryAlert(ev.pattern, ev.triggerColors, sb!));
+      if (ev.kind === 'entry') mensagens.push(F.entryAlert(ev.pattern, ev.triggerRounds, sb!));
       if (ev.kind === 'gale') mensagens.push(F.galeAlert(ev.pattern, ev.gale, ev.round.color));
       if (ev.kind === 'resolved') {
         mensagens.push(
@@ -76,20 +76,26 @@ test('backtest e motor ao vivo chegam ao mesmo placar', () => {
     { expr: '!B{3}', entry: 'B', gales: 2, white: 'protect' },
     { expr: 'P{2,3} A', entry: 'P', gales: 1, white: 'gale' },
     { expr: 'A * P', entry: 'A', gales: 2, white: 'gale' },
+    // padroes por pedra: o motor e o backtest precisam concordar aqui tambem
+    { expr: '5 *{4}', entry: 'A', gales: 1, white: 'protect' },
+    { expr: '[0,7] P', entry: 'P', gales: 1, white: 'gale' },
+    { expr: '!0{5}', entry: 'A', gales: 0, white: 'red' },
+    { expr: '8-14 1-7', entry: 'P', gales: 2, white: 'gale' },
   ];
 
-  // historico fixo e razoavelmente longo, com branco espalhado
-  const colors: Color[] = [];
+  // historico fixo e razoavelmente longo, com branco espalhado.
+  // Guardamos a pedra junto da cor para que os padroes por numero tenham
+  // o que casar — sem ela, '5 *{4}' nunca dispararia e o teste passaria vazio.
+  const rolls: number[] = [];
   let seed = 12345;
   for (let i = 0; i < 4000; i++) {
     seed = (seed * 1103515245 + 12345) % 2147483648;
-    const roll = seed % 15;
-    colors.push(roll === 0 ? 'B' : roll <= 7 ? 'A' : 'P');
+    rolls.push(seed % 15);
   }
-  const history: GameResult[] = colors.map((color, i) => ({
+  const history: GameResult[] = rolls.map((roll, i) => ({
     roundId: 'h' + i,
-    color,
-    roll: null,
+    color: colorOfRoll(roll),
+    roll,
     createdAt: new Date(Date.UTC(2026, 0, 1) + i * 20_000).toISOString(),
     live: true,
   }));

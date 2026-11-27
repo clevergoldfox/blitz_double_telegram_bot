@@ -6,6 +6,8 @@ import { Engine, EngineEvent } from './engine/engine';
 import { createSource } from './sources/index';
 import { Notifier } from './notifier/index';
 import { createBot } from './bot/index';
+import { Auth } from './web/auth';
+import { createPanel } from './web/server';
 import * as F from './bot/format';
 
 async function main(): Promise<void> {
@@ -15,7 +17,7 @@ async function main(): Promise<void> {
   log.info({ fonte: cfg.source.kind, db: cfg.dbPath, tz: cfg.timezone }, 'subindo o robo');
 
   const db = openDb(cfg.dbPath);
-  const repos = makeRepos(db);
+  const repos = makeRepos(db, cfg.telegram.alertMode);
   const engine = new Engine(repos);
   engine.primeFromHistory();
 
@@ -23,13 +25,23 @@ async function main(): Promise<void> {
   const bot = createBot({ cfg, repos, engine, source, log: log.child({ mod: 'bot' }) });
   const notifier = new Notifier(bot.api, cfg.telegram.chatId, log.child({ mod: 'notifier' }));
 
-  /** Traduz um evento do motor na mensagem que o cliente le. */
+  /**
+   * Traduz um evento do motor na mensagem que o cliente le.
+   * O modo e lido a cada evento, nao uma vez no boot: o /modo troca em
+   * operacao e o alerta seguinte ja precisa sair no formato novo.
+   */
   const render = (ev: EngineEvent): string | null => {
+    const modo = repos.settings.alertMode;
     switch (ev.kind) {
       case 'entry':
-        return F.entryAlert(ev.pattern, ev.triggerColors, repos.signals.scoreboard(ev.pattern.id, ev.pattern.name));
+        return F.entryAlert(
+          ev.pattern,
+          ev.triggerRounds,
+          repos.signals.scoreboard(ev.pattern.id, ev.pattern.name),
+          modo,
+        );
       case 'gale':
-        return F.galeAlert(ev.pattern, ev.gale, ev.round.color);
+        return F.galeAlert(ev.pattern, ev.gale, ev.round.color, modo);
       case 'resolved':
         return F.resolvedAlert(
           ev.pattern,
@@ -38,6 +50,7 @@ async function main(): Promise<void> {
           ev.signal.resolvedGale,
           ev.signal.wonOnWhite,
           ev.scoreboard,
+          modo,
         );
       case 'gap':
         return F.gapAlert(ev.reason, ev.roundsToRearm);
@@ -68,10 +81,33 @@ async function main(): Promise<void> {
   // O bot sobe primeiro: se o token estiver errado, falhamos antes de conectar na fonte.
   await bot.init();
   log.info({ bot: bot.botInfo.username }, 'bot do Telegram autenticado');
+  if (!cfg.telegram.chatId) {
+    log.warn(
+      'TELEGRAM_CHAT_ID nao configurado. O robo sobe e responde comandos, mas os '
+      + 'alertas ficam na fila. Mande /id para @' + bot.botInfo.username
+      + ' no chat de destino, copie o id para o .env e reinicie.',
+    );
+  }
   void bot.start({ onStart: () => log.info('escutando comandos no Telegram') });
 
   await source.start();
   log.info('coletor iniciado');
+
+  // O painel sobe depois da fonte: assim a primeira tela ja mostra conexao real.
+  let painel: import('node:http').Server | null = null;
+  if (cfg.web.enabled) {
+    const auth = new Auth(db, cfg.web.password);
+    painel = createPanel({ cfg, db, repos, engine, source, auth, log: log.child({ mod: 'painel' }) });
+    await new Promise<void>((resolve, reject) => {
+      painel!.once('error', reject);
+      painel!.listen(cfg.web.port, cfg.web.host, () => {
+        log.info({ url: `http://${cfg.web.host}:${cfg.web.port}` }, 'painel no ar');
+        resolve();
+      });
+    });
+  } else {
+    log.info('painel desligado (defina WEB_PASSWORD no .env para ligar)');
+  }
 
   notifier.send(
     [
@@ -92,6 +128,7 @@ async function main(): Promise<void> {
     try {
       await source.stop();
       await bot.stop();
+      if (painel) await new Promise<void>((r) => painel!.close(() => r()));
       db.close();
     } catch (err) {
       log.error({ err: String(err) }, 'falha ao encerrar');

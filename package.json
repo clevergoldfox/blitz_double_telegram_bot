@@ -13,7 +13,9 @@
     "dev": "npm run build && node dist/src/index.js",
     "probe": "node dist/src/probe.js",
     "test": "npm run build && node --test \"dist/tests/*.test.js\"",
-    "demo": "node dist/src/demo.js"
+    "demo": "node dist/src/demo.js",
+    "ao-vivo": "node dist/src/livecheck.js",
+    "banca": "node dist/src/simbanca.js"
   },
   "dependencies": {
     "dotenv": "16.4.5",

@@ -15,6 +15,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export class Notifier {
   private queue: string[] = [];
   private draining = false;
+  private avisouSemDestino = false;
 
   constructor(
     private api: Api,
@@ -34,7 +35,22 @@ export class Notifier {
     return this.queue.length;
   }
 
+  /** Destino ainda nao configurado: segura a fila em vez de perder alerta. */
+  private get temDestino(): boolean {
+    return this.chatId.trim() !== '';
+  }
+
   private async drain(): Promise<void> {
+    if (!this.temDestino) {
+      if (!this.avisouSemDestino) {
+        this.avisouSemDestino = true;
+        this.log.warn(
+          'TELEGRAM_CHAT_ID vazio: alertas ficam na fila. Mande /id para o bot, '
+          + 'copie o id do chat para o .env e reinicie.',
+        );
+      }
+      return;
+    }
     if (this.draining) return;
     this.draining = true;
     try {

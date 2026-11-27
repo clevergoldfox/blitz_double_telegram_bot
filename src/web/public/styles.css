@@ -1,0 +1,372 @@
+:root {
+  --fundo: #0e1117;
+  --cartao: #161b24;
+  --cartao-alto: #1d2430;
+  --borda: #262e3b;
+  --texto: #e6e9ef;
+  --fraco: #8b94a6;
+  --destaque: #3d7eff;
+  --verde: #2fbf71;
+  --vermelho: #e05260;
+  --amarelo: #e8c33a;
+  --preto-pedra: #343b48;
+  --branco-pedra: #d8dde7;
+  --raio: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding: 16px;
+  padding-bottom: 40px;
+}
+
+h1, h2 { margin: 0; font-size: 1.05rem; letter-spacing: .01em; }
+
+.discreto { color: var(--fraco); font-size: .85rem; font-weight: 400; }
+em.discreto { font-style: normal; }
+
+.cartao {
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.cartao__cabeca {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* ---------- login ---------- */
+.login { min-height: 80vh; display: grid; place-items: center; }
+.login__cartao { width: min(360px, 100%); margin: 0; }
+.login__titulo { font-size: 1.3rem; }
+.login__sub { color: var(--fraco); margin: 4px 0 20px; }
+
+/* ---------- topo ---------- */
+.topo {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.topo__marca { display: flex; flex-direction: column; }
+.topo__detalhe { color: var(--fraco); font-size: .8rem; }
+.topo__acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.selo {
+  font-size: .78rem; padding: 5px 10px; border-radius: 999px;
+  background: var(--cartao-alto); border: 1px solid var(--borda); color: var(--fraco);
+  white-space: nowrap;
+}
+.selo--ok { color: var(--verde); border-color: color-mix(in srgb, var(--verde) 40%, var(--borda)); }
+.selo--ruim { color: var(--vermelho); border-color: color-mix(in srgb, var(--vermelho) 40%, var(--borda)); }
+.selo--botao { cursor: pointer; font: inherit; font-size: .78rem; }
+.selo--botao:hover { border-color: var(--destaque); color: var(--texto); }
+
+/* ---------- rodadas ---------- */
+.rodadas { display: flex; flex-wrap: wrap; gap: 6px; }
+.pedra {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: grid; place-items: center;
+  font-size: .82rem; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.pedra--P { background: var(--preto-pedra); color: #cfd6e4; }
+.pedra--A { background: var(--amarelo); color: #2a2403; }
+.pedra--B { background: var(--branco-pedra); color: #11161f; }
+
+/* ---------- formulario ---------- */
+.campo { display: block; margin-bottom: 14px; }
+.campo > span { display: block; font-size: .85rem; color: var(--fraco); margin-bottom: 6px; }
+
+input[type=text], input[type=password], input[type=number] {
+  width: 100%; padding: 10px 12px;
+  background: var(--fundo); color: var(--texto);
+  border: 1px solid var(--borda); border-radius: 9px;
+  font: inherit;
+}
+input:focus { outline: 2px solid var(--destaque); outline-offset: -1px; }
+#p-expr { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+
+.grade { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 560px) { .grade { grid-template-columns: 1fr; } }
+
+.opcoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.opcoes--coluna { flex-direction: column; }
+.opcoes input { position: absolute; opacity: 0; pointer-events: none; }
+.opcao {
+  display: inline-block; padding: 7px 11px; border-radius: 8px;
+  background: var(--cartao-alto); border: 1px solid var(--borda);
+  cursor: pointer; font-size: .88rem;
+}
+.opcoes input:checked + .opcao { border-color: var(--destaque); background: color-mix(in srgb, var(--destaque) 18%, var(--cartao-alto)); }
+.opcoes input:focus-visible + .opcao { outline: 2px solid var(--destaque); }
+
+.atalhos { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 14px; }
+.chip {
+  padding: 6px 10px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .82rem;
+  background: var(--cartao-alto); border: 1px solid var(--borda); color: var(--texto);
+}
+.chip:hover { border-color: var(--destaque); }
+.chip--apagar { margin-left: auto; color: var(--fraco); }
+
+.teclado { display: flex; flex-wrap: wrap; gap: 5px; margin: -6px 0 14px; }
+.teclado .pedra { cursor: pointer; border: 1px solid transparent; }
+.teclado .pedra:hover { border-color: var(--destaque); }
+
+.botoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.botao {
+  padding: 10px 16px; border-radius: 9px; cursor: pointer; font: inherit;
+  background: var(--cartao-alto); border: 1px solid var(--borda); color: var(--texto);
+}
+.botao:hover { border-color: var(--destaque); }
+.botao--principal { background: var(--destaque); border-color: var(--destaque); color: #fff; font-weight: 600; }
+.botao--principal:hover { filter: brightness(1.08); }
+.botao--fantasma { background: transparent; color: var(--fraco); }
+.botao[disabled] { opacity: .55; cursor: progress; }
+
+.erro {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: 9px; font-size: .88rem;
+  background: color-mix(in srgb, var(--vermelho) 14%, var(--cartao));
+  border: 1px solid color-mix(in srgb, var(--vermelho) 40%, var(--borda));
+  color: #ffc9cf;
+}
+
+/* ---------- colunas ---------- */
+.colunas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .colunas { grid-template-columns: 1fr; } }
+
+/* ---------- resultado do teste ---------- */
+.teste {
+  margin-top: 16px; padding: 14px;
+  background: var(--cartao-alto); border: 1px solid var(--borda); border-radius: 10px;
+}
+.teste__taxa { font-size: 2rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.teste__linhas { display: grid; gap: 4px; margin-top: 10px; font-size: .88rem; color: var(--fraco); }
+.teste__linhas strong { color: var(--texto); font-variant-numeric: tabular-nums; }
+.veredito { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: .88rem; }
+.veredito--acima { background: color-mix(in srgb, var(--verde) 14%, transparent); border: 1px solid color-mix(in srgb, var(--verde) 38%, var(--borda)); }
+.veredito--igual { background: color-mix(in srgb, var(--amarelo) 12%, transparent); border: 1px solid color-mix(in srgb, var(--amarelo) 35%, var(--borda)); }
+.veredito--abaixo { background: color-mix(in srgb, var(--vermelho) 12%, transparent); border: 1px solid color-mix(in srgb, var(--vermelho) 35%, var(--borda)); }
+
+/* ---------- lista ---------- */
+.lista { display: grid; gap: 10px; }
+.padrao {
+  padding: 12px; border-radius: 10px;
+  background: var(--cartao-alto); border: 1px solid var(--borda);
+}
+.padrao--off { opacity: .55; }
+.padrao__topo { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.padrao__nome { font-weight: 600; }
+.padrao__expr { font-size: 1.05rem; margin: 6px 0; letter-spacing: .04em; }
+.padrao__meta { font-size: .82rem; color: var(--fraco); }
+.padrao__placar { margin-top: 8px; font-size: .88rem; font-variant-numeric: tabular-nums; }
+.padrao__acoes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.padrao__acoes .botao { padding: 6px 11px; font-size: .82rem; }
+.verde { color: var(--verde); }
+.vermelho { color: var(--vermelho); }
+
+.vazio { color: var(--fraco); text-align: center; padding: 24px 0; }
+
+/* ---------- avisos ---------- */
+.aviso {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  background: var(--cartao-alto); border: 1px solid var(--destaque);
+  padding: 11px 16px; border-radius: 10px; font-size: .9rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45); z-index: 20; max-width: 90vw;
+}
+
+.rodape { color: var(--fraco); font-size: .8rem; text-align: center; margin-top: 8px; }
+
+/* Leitura do gatilho em bolinhas, logo abaixo do campo de texto. */
+.previa {
+  margin: -8px 0 14px;
+  padding: 9px 12px;
+  background: var(--cartao-alto);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  font-size: 1.05rem;
+  line-height: 1.6;
+  letter-spacing: .06em;
+  word-break: break-word;
+}
+
+.previa--erro {
+  font-size: .85rem;
+  letter-spacing: normal;
+  color: var(--vermelho);
+  border-color: var(--vermelho);
+  background: transparent;
+}
+
+/* ---------- abas ---------- */
+.abas {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--borda);
+}
+
+.aba {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--fraco);
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+}
+
+.aba:hover { color: var(--texto); background: var(--cartao); }
+
+.aba--ativa {
+  color: var(--texto);
+  border-bottom-color: var(--destaque);
+}
+
+/* ---------- notas e rotulos ---------- */
+.nota {
+  color: var(--fraco);
+  font-size: .85rem;
+  margin: 12px 0 0;
+  line-height: 1.6;
+}
+
+.neutro { color: var(--amarelo); }
+
+/**
+ * Rotulo do veredito ao lado da taxa.
+ *
+ * Existe porque a cor sozinha nao basta: amarelo poderia ser lido como "quase
+ * bom", e "empata com a base" nao deixa duvida.
+ */
+.rotulo {
+  display: inline-block;
+  font-size: .72rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--borda);
+  color: var(--fraco);
+  vertical-align: middle;
+}
+
+.rotulo--acima { color: var(--verde); border-color: color-mix(in srgb, var(--verde) 45%, transparent); }
+.rotulo--abaixo { color: var(--vermelho); border-color: color-mix(in srgb, var(--vermelho) 45%, transparent); }
+.rotulo--dentro { color: var(--amarelo); border-color: color-mix(in srgb, var(--amarelo) 45%, transparent); }
+
+/* ---------- tabelas ---------- */
+.tabela-rolagem { overflow-x: auto; }
+.tabela-rolagem--alta { max-height: 420px; overflow-y: auto; }
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .88rem;
+}
+
+.tabela th,
+.tabela td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--borda);
+  white-space: nowrap;
+}
+
+.tabela thead th {
+  color: var(--fraco);
+  font-size: .78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  position: sticky;
+  top: 0;
+  background: var(--cartao);
+}
+
+.tabela tbody tr:hover { background: var(--cartao-alto); }
+.tabela tfoot th { border-bottom: 0; padding-top: 10px; }
+
+/* Numeros a direita ficam mais faceis de comparar de cima a baixo. */
+.tabela--escada td:nth-child(2),
+.tabela--escada td:nth-child(3),
+.tabela--escada td:nth-child(4),
+.tabela--escada th:nth-child(4) { text-align: right; }
+
+.mini {
+  width: 92px;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  color: var(--texto);
+  font: inherit;
+  padding: 5px 8px;
+  text-align: right;
+}
+
+.mini:focus { outline: 2px solid var(--destaque); outline-offset: 1px; }
+
+/* O placar duplo e so uma tabela de tres colunas com os dois lados alinhados. */
+.placar-duplo .tabela th:first-child { width: 42%; white-space: normal; }
+.placar-duplo .tabela td { text-align: right; }
+
+/* ---------- a tabela no papel ---------- */
+.teoria__lista { margin: 0; display: grid; gap: 2px; }
+
+.teoria__lista > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--borda);
+}
+
+.teoria__lista dt { color: var(--fraco); font-size: .88rem; }
+.teoria__lista dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* ---------- graficos ---------- */
+.grafico { margin-top: 4px; }
+
+.grafico__svg {
+  width: 100%;
+  height: 220px;
+  display: block;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+
+.grafico__eixo {
+  display: flex;
+  justify-content: space-between;
+  font-size: .78rem;
+  color: var(--fraco);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.curva__linha { fill: none; stroke: var(--destaque); stroke-width: 2; }
+.curva__area { fill: color-mix(in srgb, var(--destaque) 16%, transparent); stroke: none; }
+
+/* A linha da banca e tracejada para nao se confundir com a curva. */
+.curva__base {
+  stroke: var(--fraco);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.barra--verde { fill: var(--verde); }
+.barra--vermelha { fill: var(--vermelho); }
+
+.selo--neutro { color: var(--fraco); }

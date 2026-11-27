@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { resolve } from 'node:path';
-import { Color } from './types';
+import { AlertMode, Color } from './types';
 import { DEFAULT_COLOR_MAP, FieldMap, parseColorMapSpec } from './sources/parsing';
 import { Level } from './logger';
 
@@ -41,16 +41,29 @@ export type SourceKind = 'blitz' | 'simulator';
 export interface Config {
   telegram: {
     token: string;
-    /** Chat de destino dos alertas: privado, grupo ou canal. */
+    /**
+     * Chat de destino dos alertas: privado, grupo ou canal.
+     * Pode subir vazio: o chat id so e descoberto mandando /id para o bot ja
+     * rodando, entao exigi-lo no boot criaria um impasse. Vazio significa
+     * 'alertas em espera', nunca 'alertas perdidos'.
+     */
     chatId: string;
     /** Quem pode configurar padroes. Vazio = qualquer um, o que nao recomendamos. */
     ownerIds: number[];
+    /**
+     * Valor inicial do modo de alerta. Depois de a primeira troca por /modo,
+     * quem manda e o banco: nao faz sentido um deploy reabrir a estrategia de
+     * um grupo que o dono fechou.
+     */
+    alertMode: AlertMode;
   };
   source: {
     kind: SourceKind;
     simIntervalMs: number;
     simScripted: Color[];
     wsUrl?: string;
+    wsProtocol: 'socketio' | 'raw';
+    wsRooms: string[];
     wsSubscribe?: string;
     restRecentUrl?: string;
     pollMs: number;
@@ -62,6 +75,16 @@ export interface Config {
     requireComplete: boolean;
     staleAfterMs: number;
     backfillLimit: number;
+  };
+  web: {
+    /** O painel so sobe com WEB_PASSWORD definida: sem senha nao ha painel. */
+    enabled: boolean;
+    port: number;
+    /** 127.0.0.1 por padrao: quem expoe para fora e o proxy, com HTTPS. */
+    host: string;
+    password: string;
+    /** Marca o cookie como Secure. Ligue quando houver HTTPS na frente. */
+    seguro: boolean;
   };
   dbPath: string;
   timezone: string;
@@ -85,6 +108,7 @@ export function loadConfig(): Config {
     ['color', 'BLITZ_FIELD_COLOR'],
     ['roll', 'BLITZ_FIELD_ROLL'],
     ['createdAt', 'BLITZ_FIELD_CREATED_AT'],
+    ['updatedAt', 'BLITZ_FIELD_UPDATED_AT'],
     ['status', 'BLITZ_FIELD_STATUS'],
   ];
   for (const [k, env] of fieldEnv) {
@@ -100,14 +124,17 @@ export function loadConfig(): Config {
   return {
     telegram: {
       token: str('TELEGRAM_BOT_TOKEN'),
-      chatId: str('TELEGRAM_CHAT_ID'),
+      chatId: optional('TELEGRAM_CHAT_ID') ?? '',
       ownerIds: list('TELEGRAM_OWNER_IDS').map(Number).filter(Number.isFinite),
+      alertMode: str('ALERT_MODE', 'completo').toLowerCase() === 'publico' ? 'publico' : 'completo',
     },
     source: {
       kind,
       simIntervalMs: num('SIM_INTERVAL_MS', 20_000),
       simScripted: scripted,
       wsUrl: optional('BLITZ_WS_URL'),
+      wsProtocol: (str('BLITZ_WS_PROTOCOL', 'socketio') === 'raw' ? 'raw' : 'socketio'),
+      wsRooms: list('BLITZ_WS_ROOMS').length ? list('BLITZ_WS_ROOMS') : ['double_room_1'],
       wsSubscribe: optional('BLITZ_WS_SUBSCRIBE'),
       restRecentUrl: optional('BLITZ_REST_RECENT_URL'),
       pollMs: num('BLITZ_POLL_MS', 3_000),
@@ -122,6 +149,13 @@ export function loadConfig(): Config {
       requireComplete: bool('BLITZ_REQUIRE_COMPLETE', true),
       staleAfterMs: num('BLITZ_STALE_AFTER_MS', 120_000),
       backfillLimit: num('BLITZ_BACKFILL_LIMIT', 50),
+    },
+    web: {
+      enabled: Boolean(optional('WEB_PASSWORD')),
+      port: num('WEB_PORT', 8080),
+      host: str('WEB_HOST', '127.0.0.1'),
+      password: optional('WEB_PASSWORD') ?? '',
+      seguro: bool('WEB_SECURE_COOKIE', false),
     },
     dbPath: resolve(str('DB_PATH', 'data/bot.db')),
     timezone: str('TZ_DISPLAY', 'America/Sao_Paulo'),

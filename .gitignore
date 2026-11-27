@@ -5,3 +5,10 @@ data/*.db-journal
 .env
 *.log
 refer/
+
+# Arquivos auxiliares do SQLite: nascem e morrem com o banco aberto.
+data/*.db-shm
+data/*.db-wal
+
+# Material de referencia do cliente (capturas, anotacoes).
+refer_note/

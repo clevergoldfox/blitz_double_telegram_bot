@@ -13,7 +13,7 @@
  * o resultado depende do IP de saida.
  */
 import WebSocket from 'ws';
-import { extractRounds, unwrapSocketFrame } from './sources/parsing';
+import { extractRounds, inflateSocketPayload, unwrapSocketFrame } from './sources/parsing';
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -29,9 +29,15 @@ const REST_GUESSES = [
   '/api/v2/roulette_games/recent',
 ];
 
+/** Salas tentadas na assinatura. A Blitz usa double_room_1..10. */
+const ROOM_GUESSES = ['double_room_1', 'double_room_2', 'doubles', 'double'];
+
 const WS_GUESSES = (host: string) => [
-  `wss://api-gaming.${host}/replication/?EIO=3&transport=websocket`,
+  // binary=1 e obrigatorio na Blitz: sem isso o servidor responde
+  // 44"Binary replication required" e fecha.
+  `wss://api-gaming.${host}/replication/?EIO=4&transport=websocket&binary=1`,
   `wss://api-gaming.${host}/replication/?EIO=4&transport=websocket`,
+  `wss://api-gaming.${host}/replication/?EIO=3&transport=websocket`,
   `wss://ws.${host}/socket.io/?EIO=4&transport=websocket`,
   `wss://${host}/socket.io/?EIO=4&transport=websocket`,
 ];
@@ -129,19 +135,44 @@ async function probeWs(url: string, origin: string | undefined, seconds: number)
       seconds * 1000,
     );
 
-    ws.on('open', () => {
-      // Assinaturas comuns da familia Blaze/socket.io. Mandar todas e inofensivo.
-      ws.send('2probe');
-      ws.send('5');
-      ws.send('420["cmd",{"id":"subscribe","payload":{"room":"double_room_1"}}]');
-      ws.send('42["subscribe",{"room":"double_room_1"}]');
-    });
+    let subscribed = false;
+    let pingTimer: NodeJS.Timeout | null = null;
 
     ws.on('message', (data) => {
       frames++;
-      const raw = data.toString();
+      const buf = Buffer.isBuffer(data)
+        ? data
+        : Array.isArray(data)
+          ? Buffer.concat(data)
+          : Buffer.from(data as ArrayBuffer);
+      const raw = buf.toString('utf8');
+
+      // Aperto de mao do engine.io v4. O servidor da Blitz anuncia pingInterval
+      // mas nao envia ping nenhum: quem nao pingar sozinho cai em ~46s.
+      if (raw.startsWith('0{')) {
+        ws.send('40');
+        try {
+          const cfg = JSON.parse(raw.slice(1)) as { pingInterval?: number };
+          const every = Math.max(5_000, (cfg.pingInterval ?? 25_000) - 5_000);
+          pingTimer = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) ws.send('2');
+          }, every);
+        } catch { /* usa o padrao */ }
+        return;
+      }
+      if (raw.startsWith('40') && !subscribed) {
+        subscribed = true;
+        // Formato visto na Blitz: emit("cmd", {id:"subscribe", payload:{room}})
+        for (const room of ROOM_GUESSES) {
+          ws.send(`420["cmd",${JSON.stringify({ id: 'subscribe', payload: { room } })}]`);
+        }
+        return;
+      }
       if (raw === '2') { ws.send('3'); return; }
-      const payload = unwrapSocketFrame(raw);
+      if (raw === '3') return;
+
+      // Anexo binario (deflate cru) usado pelo modo "binary replication".
+      const payload = buf[0] === 0x04 ? inflateSocketPayload(buf) : unwrapSocketFrame(raw);
       if (payload === null) return;
       const found = extractRounds(payload, { requireComplete: false });
       if (found.length > 0) {
@@ -149,6 +180,10 @@ async function probeWs(url: string, origin: string | undefined, seconds: number)
         sample ??= found[0];
       }
     });
+
+    const clearPing = () => { if (pingTimer) clearInterval(pingTimer); pingTimer = null; };
+    ws.once('close', clearPing);
+    ws.once('error', clearPing);
 
     ws.on('error', (err) => { clearTimeout(timer); done(false, err.message); });
     ws.on('close', () => { clearTimeout(timer); done(rounds > 0, `fechou apos ${frames} frames, ${rounds} rodadas`); });
@@ -278,7 +313,11 @@ async function main(): Promise<void> {
 
   console.log('\nColoque no .env:\n');
   console.log('SOURCE=blitz');
-  if (bestWs) console.log(`BLITZ_WS_URL=${bestWs.url}`);
+  if (bestWs) {
+    console.log(`BLITZ_WS_URL=${bestWs.url}`);
+    console.log('BLITZ_WS_PROTOCOL=socketio');
+    console.log('BLITZ_WS_ROOMS=double_room_1');
+  }
   if (bestRest) console.log(`BLITZ_REST_RECENT_URL=${bestRest.url}`);
   console.log(`BLITZ_ORIGIN=${origin}`);
   console.log(`BLITZ_REFERER=${target}`);
