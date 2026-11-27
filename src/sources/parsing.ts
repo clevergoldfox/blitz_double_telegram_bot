@@ -1,3 +1,4 @@
+import { inflateRawSync } from 'node:zlib';
 import { Color, GameResult, isColor } from '../types';
 
 /**
@@ -11,6 +12,7 @@ export interface FieldMap {
   color: string[];
   roll: string[];
   createdAt: string[];
+  updatedAt: string[];
   status: string[];
 }
 
@@ -19,6 +21,7 @@ export const DEFAULT_FIELDS: FieldMap = {
   color: ['color', 'cor', 'result_color', 'resultColor', 'winning_color'],
   roll: ['roll', 'number', 'numero', 'result', 'value', 'winning_number'],
   createdAt: ['created_at', 'createdAt', 'finished_at', 'finishedAt', 'timestamp', 'time', 'date'],
+  updatedAt: ['updated_at', 'updatedAt', 'rolled_at', 'rolledAt'],
   status: ['status', 'state', 'phase'],
 };
 
@@ -34,8 +37,20 @@ export const DEFAULT_COLOR_MAP: Record<string, Color> = {
   P: 'P', A: 'A', B: 'B',
 };
 
-/** Status que indicam round encerrado. Nunca agimos sobre round em andamento. */
-export const COMPLETE_STATUSES = new Set(['complete', 'completed', 'finished', 'done', 'rolled', 'closed']);
+/**
+ * Status em que o resultado do round ja e definitivo.
+ *
+ * Na Blitz o ciclo e: waiting (aposta aberta, cor nula) -> rolling (cor e numero
+ * ja revelados) -> complete. Medido ao vivo, "rolling" chega cerca de 10s antes
+ * de "complete" com exatamente a mesma cor, entao aceitamos os dois e deixamos a
+ * deduplicacao por round_id descartar o segundo. Isso adianta o alerta em 10s
+ * sem nenhum risco de divergencia.
+ *
+ * "waiting" fica de fora de proposito: ali a cor ainda e null.
+ */
+export const COMPLETE_STATUSES = new Set([
+  'rolling', 'complete', 'completed', 'finished', 'done', 'rolled', 'closed',
+]);
 
 export function parseColorMapSpec(spec: string): Record<string, Color> {
   // formato: "0=B,1=A,2=P"
@@ -129,6 +144,9 @@ export function extractRounds(payload: unknown, opts: ExtractOptions = {}): Game
           color,
           roll,
           createdAt: coerceDate(pick(obj, fields.createdAt)),
+          revealedAt: pick(obj, fields.updatedAt) !== undefined
+            ? coerceDate(pick(obj, fields.updatedAt))
+            : null,
           live: true,
         });
       }
@@ -143,6 +161,30 @@ export function extractRounds(payload: unknown, opts: ExtractOptions = {}): Game
   const byId = new Map<string, GameResult>();
   for (const r of found) if (!byId.has(r.roundId)) byId.set(r.roundId, r);
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * Decodifica o anexo binario do socket.io da Blitz.
+ *
+ * A conexao usa "binary replication": o evento vem como
+ * 451-["data",{"_placeholder":true,"num":0}] e o conteudo de verdade chega no
+ * frame binario seguinte, que e deflate cru (sem cabecalho zlib) depois de
+ * alguns bytes de controle do engine.io / socket.io.
+ *
+ * O deslocamento certo medido na Blitz e 2, mas tentamos alguns para nao
+ * depender de detalhe de versao do servidor.
+ */
+export function inflateSocketPayload(buf: Buffer): unknown | null {
+  for (const offset of [2, 1, 0, 3]) {
+    if (offset >= buf.length) continue;
+    try {
+      const text = inflateRawSync(buf.subarray(offset)).toString('utf8');
+      if (text.startsWith('{') || text.startsWith('[')) return JSON.parse(text);
+    } catch {
+      // deslocamento errado; tenta o proximo
+    }
+  }
+  return null;
 }
 
 /**

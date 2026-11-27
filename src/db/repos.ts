@@ -1,5 +1,5 @@
-import { Db } from './index';
-import { Color, GameResult, NewPattern, Pattern, Scoreboard, Signal, SignalStatus, WhiteRule } from '../types';
+import { Db, getMeta, setMeta } from './index';
+import { AlertMode, Color, GameResult, NewPattern, Pattern, Scoreboard, Signal, SignalStatus, WhiteRule } from '../types';
 
 const toBool = (v: unknown): boolean => v === 1 || v === true || v === '1';
 
@@ -233,12 +233,36 @@ export class SignalsRepo {
   }
 }
 
+/**
+ * Ajustes que o dono muda em operacao, guardados no banco e nao no .env.
+ * O modo de alerta precisa trocar sem reiniciar: quem revende o sinal pode
+ * querer abrir o grupo em modo publico e voltar ao completo no mesmo dia.
+ */
+export class SettingsRepo {
+  constructor(private db: Db, private alertModeFallback: AlertMode) {}
+
+  get alertMode(): AlertMode {
+    const v = getMeta(this.db, 'alert_mode');
+    return v === 'publico' || v === 'completo' ? v : this.alertModeFallback;
+  }
+
+  set alertMode(mode: AlertMode) {
+    setMeta(this.db, 'alert_mode', mode);
+  }
+}
+
 export interface Repos {
   results: ResultsRepo;
   patterns: PatternsRepo;
   signals: SignalsRepo;
+  settings: SettingsRepo;
 }
 
-export function makeRepos(db: Db): Repos {
-  return { results: new ResultsRepo(db), patterns: new PatternsRepo(db), signals: new SignalsRepo(db) };
+export function makeRepos(db: Db, alertMode: AlertMode = 'completo'): Repos {
+  return {
+    results: new ResultsRepo(db),
+    patterns: new PatternsRepo(db),
+    signals: new SignalsRepo(db),
+    settings: new SettingsRepo(db, alertMode),
+  };
 }

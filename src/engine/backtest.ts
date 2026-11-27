@@ -1,4 +1,4 @@
-import { Color, GameResult, WhiteRule } from '../types';
+import { Color, GameResult, RoundView, WhiteRule } from '../types';
 import { ParsedPattern } from './grammar';
 import { matchAtEnd } from './matcher';
 import { classifyAttempt } from './rules';
@@ -52,7 +52,7 @@ export function backtest(history: readonly GameResult[], cfg: BacktestConfig): B
   };
 
   const window = cfg.parsed.maxLength;
-  const colors: Color[] = [];
+  const janela: RoundView[] = [];
 
   // Sinal aberto corrente (no maximo um, igual a trava de reentrancia do motor).
   let openGale: number | null = null;
@@ -77,8 +77,8 @@ export function backtest(history: readonly GameResult[], cfg: BacktestConfig): B
   };
 
   for (const round of history) {
-    colors.push(round.color);
-    if (colors.length > window) colors.shift();
+    janela.push({ color: round.color, roll: round.roll });
+    if (janela.length > window) janela.shift();
 
     // 1. resolve o sinal aberto com esta rodada
     if (openGale !== null) {
@@ -96,7 +96,7 @@ export function backtest(history: readonly GameResult[], cfg: BacktestConfig): B
     }
 
     // 2. so depois procura gatilho novo, exatamente como no motor ao vivo
-    if (openGale === null && matchAtEnd(cfg.parsed, colors) !== null) {
+    if (openGale === null && matchAtEnd(cfg.parsed, janela) !== null) {
       openGale = 0;
       out.signals++;
       if (out.firstAt === null) out.firstAt = round.createdAt;

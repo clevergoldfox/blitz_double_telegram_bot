@@ -1,11 +1,11 @@
-import { Color, GameResult, Pattern, Scoreboard, Signal } from '../types';
+import { GameResult, Pattern, RoundView, Scoreboard, Signal } from '../types';
 import { Repos } from '../db/repos';
 import { ParsedPattern, parsePattern } from './grammar';
 import { matchAtEnd } from './matcher';
 import { classifyAttempt } from './rules';
 
 export type EngineEvent =
-  | { kind: 'entry'; pattern: Pattern; signal: Signal; triggerColors: Color[]; round: GameResult }
+  | { kind: 'entry'; pattern: Pattern; signal: Signal; triggerRounds: RoundView[]; round: GameResult }
   | { kind: 'gale'; pattern: Pattern; signal: Signal; gale: number; round: GameResult }
   | {
       kind: 'resolved';
@@ -144,7 +144,9 @@ export class Engine {
     const window = this.windowSize(patterns);
     if (this.trustedStreak < window) return [];
 
-    const history = this.repos.results.recentColors(window);
+    // recent() ja devolve {color, roll}: o casador precisa dos dois para
+    // resolver padroes por numero.
+    const history = this.repos.results.recent(window);
     const events: EngineEvent[] = [];
 
     for (const pattern of patterns) {
@@ -166,7 +168,7 @@ export class Engine {
         kind: 'entry',
         pattern,
         signal,
-        triggerColors: history.slice(history.length - len),
+        triggerRounds: history.slice(history.length - len),
         round,
       });
     }

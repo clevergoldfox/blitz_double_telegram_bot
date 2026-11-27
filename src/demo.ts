@@ -69,8 +69,8 @@ async function main(): Promise<void> {
 
       for (const ev of eventos) {
         if (ev.kind === 'entry') {
-          console.log(`\n[giro ${n}] ultimas: ${F.seqPretty(linha.slice(-8))}`);
-          console.log(plain(F.entryAlert(ev.pattern, ev.triggerColors, repos.signals.scoreboard(ev.pattern.id, ev.pattern.name))));
+          console.log(`\n[giro ${n}] ultimas: ${F.colorsPretty(linha.slice(-8))}`);
+          console.log(plain(F.entryAlert(ev.pattern, ev.triggerRounds, repos.signals.scoreboard(ev.pattern.id, ev.pattern.name))));
         } else if (ev.kind === 'gale') {
           console.log(plain(F.galeAlert(ev.pattern, ev.gale, ev.round.color)));
         } else if (ev.kind === 'resolved') {

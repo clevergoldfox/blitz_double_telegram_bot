@@ -35,3 +35,17 @@ systemctl enable --now blitz-double-bot
 echo
 echo "pronto. acompanhe com:"
 echo "  journalctl -u blitz-double-bot -f"
+
+if grep -q '^WEB_PASSWORD=.\+' "$APP_DIR/.env" 2>/dev/null; then
+  PORTA=$(grep -oP '^WEB_PORT=\K.*' "$APP_DIR/.env" 2>/dev/null || echo 8080)
+  echo
+  echo "o painel esta em http://127.0.0.1:${PORTA:-8080} (so local, de proposito)."
+  echo "para abrir na internet com HTTPS:"
+  echo "  sudo cp deploy/nginx-painel.conf /etc/nginx/sites-available/painel"
+  echo "  sudo ln -s /etc/nginx/sites-available/painel /etc/nginx/sites-enabled/"
+  echo "  sudo certbot --nginx -d painel.SEU-DOMINIO.com"
+  echo "depois do certificado, ponha WEB_SECURE_COOKIE=true no .env e reinicie."
+else
+  echo
+  echo "o painel esta desligado: defina WEB_PASSWORD no .env e reinicie para ligar."
+fi

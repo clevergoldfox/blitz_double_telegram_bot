@@ -1,4 +1,6 @@
-import { COLOR_EMOJI, COLOR_NAME, Color, GameResult, Pattern, Scoreboard, WHITE_RULE_LABEL } from '../types';
+import {
+  AlertMode, COLOR_EMOJI, COLOR_NAME, Color, GameResult, Pattern, RoundView, Scoreboard, WHITE_RULE_LABEL,
+} from '../types';
 import { BacktestResult } from '../engine/backtest';
 import { SourceStatus } from '../sources/types';
 import { formatTokensPretty, parsePattern } from '../engine/grammar';
@@ -16,8 +18,32 @@ export function colorChip(c: Color): string {
   return `${COLOR_EMOJI[c]} ${COLOR_NAME[c].toUpperCase()}`;
 }
 
-export function seqPretty(colors: readonly Color[]): string {
+/**
+ * Sequencia de rodadas em emoji.
+ *
+ * Com `comNumero`, cada rodada vira "🟡5" e as rodadas sao separadas por
+ * espaco. So vale a pena para padrao que usa pedra: para padrao de cor, o
+ * numero vira ruido e a fileira compacta le melhor.
+ */
+export function seqPretty(rounds: readonly RoundView[], comNumero = false): string {
+  if (!comNumero) return rounds.map((r) => COLOR_EMOJI[r.color]).join('');
+  return rounds
+    .map((r) => (r.roll === null ? COLOR_EMOJI[r.color] : `${COLOR_EMOJI[r.color]}${r.roll}`))
+    .join(' ');
+}
+
+/** Atalho para quando so existem cores em maos (historico antigo, demo). */
+export function colorsPretty(colors: readonly Color[]): string {
   return colors.map((c) => COLOR_EMOJI[c]).join('');
+}
+
+/** O padrao depende da pedra sorteada? Decide se o alerta mostra os numeros. */
+export function patternUsesRolls(expr: string): boolean {
+  try {
+    return parsePattern(expr).usesRolls;
+  } catch {
+    return false;
+  }
 }
 
 /** "Até G1" / "sem gale" / "até G2" */
@@ -33,7 +59,22 @@ export function patternExprPretty(expr: string): string {
   }
 }
 
-export function patternHeadline(p: Pattern): string {
+/**
+ * Como os alertas se apresentam.
+ *
+ *  - 'completo': mostra nome e gatilho. E o que o dono quer ver.
+ *  - 'publico' : omite nome E gatilho. Serve para quem revende o sinal: o
+ *    assinante ve a entrada, o gale e o placar, mas nao consegue deduzir a
+ *    estrategia e sair usando por conta propria.
+ *
+ * Esconder apenas o gatilho nao bastaria: o /novo usa a propria sequencia como
+ * nome quando o cliente nao informa um, entao o nome vazaria a estrategia do
+ * mesmo jeito. Por isso o modo publico troca o cabecalho inteiro por "Sinal #id".
+ */
+export type { AlertMode };
+
+export function patternHeadline(p: Pattern, mode: AlertMode = 'completo'): string {
+  if (mode === 'publico') return `Sinal #${p.id}`;
   return `Padrao #${p.id} <b>${esc(p.name)}</b>`;
 }
 
@@ -43,23 +84,29 @@ export function scoreInline(sb: Scoreboard): string {
   return `${sb.greens}V / ${sb.reds}D (${pct(sb.hitRate)})`;
 }
 
-export function entryAlert(p: Pattern, trigger: readonly Color[], sb: Scoreboard): string {
+export function entryAlert(
+  p: Pattern,
+  trigger: readonly RoundView[],
+  sb: Scoreboard,
+  mode: AlertMode = 'completo',
+): string {
+  const comNumero = patternUsesRolls(p.expr);
   return [
     '\u{1F6A8} <b>ENTRADA CONFIRMADA</b>',
     '',
-    patternHeadline(p),
-    `Gatilho: ${seqPretty(trigger)}`,
+    patternHeadline(p, mode),
+    mode === 'publico' ? null : `Gatilho: ${seqPretty(trigger, comNumero)}`,
     '',
     `➡️ Entrar no <b>${colorChip(p.entryColor)}</b>`,
     `${galeLabel(p.gales)} · ${WHITE_RULE_LABEL[p.whiteRule]}`,
     '',
     `Placar deste padrao: ${scoreInline(sb)}`,
-  ].join('\n');
+  ].filter((l): l is string => l !== null).join('\n');
 }
 
-export function galeAlert(p: Pattern, gale: number, saiu: Color): string {
+export function galeAlert(p: Pattern, gale: number, saiu: Color, mode: AlertMode = 'completo'): string {
   return [
-    `⚠️ <b>G${gale}</b> — ${patternHeadline(p)}`,
+    `⚠️ <b>G${gale}</b> — ${patternHeadline(p, mode)}`,
     `Saiu ${COLOR_EMOJI[saiu]} ${COLOR_NAME[saiu]}.`,
     `Entrar de novo no <b>${colorChip(p.entryColor)}</b> (G${gale}).`,
   ].join('\n');
@@ -72,6 +119,7 @@ export function resolvedAlert(
   gale: number | null,
   wonOnWhite: boolean,
   sb: Scoreboard,
+  mode: AlertMode = 'completo',
 ): string {
   const head =
     status === 'green'
@@ -84,10 +132,30 @@ export function resolvedAlert(
       : ` · ${sb.currentStreak} ${sb.streakKind === 'green' ? 'greens' : 'reds'} seguidos`;
 
   return [
-    `${head} — ${patternHeadline(p)}`,
+    `${head} — ${patternHeadline(p, mode)}`,
     `Saiu ${COLOR_EMOJI[saiu]} ${COLOR_NAME[saiu]}.`,
     `Placar: ${scoreInline(sb)}${streak}`,
   ].join('\n');
+}
+
+export function modoBlock(mode: AlertMode): string {
+  return mode === 'publico'
+    ? [
+        '🔒 <b>Modo publico</b> (estrategia oculta)',
+        '',
+        'Os alertas saem sem o nome do padrao e sem a sequencia do gatilho.',
+        'Quem recebe ve a entrada, o gale e o placar, mas nao a estrategia.',
+        '',
+        'Para voltar: <code>/modo completo</code>',
+      ].join('\n')
+    : [
+        '🔓 <b>Modo completo</b> (estrategia visivel)',
+        '',
+        'Os alertas mostram o nome do padrao e a sequencia que disparou.',
+        '',
+        'Se for repassar os sinais para outras pessoas, use <code>/modo publico</code>',
+        'para ocultar a estrategia.',
+      ].join('\n');
 }
 
 export function gapAlert(reason: string, roundsToRearm: number): string {
@@ -183,7 +251,7 @@ export function statusBlock(
     `Padroes ativos: ${padroesAtivos}`,
     `Alertas: ${armed ? 'armados' : '<b>pausados</b> (historico se reconstruindo)'}`,
     '',
-    `Ultimas rodadas: ${seqPretty(ultimos.map((r) => r.color))}`,
+    `Ultimas rodadas: ${colorsPretty(ultimos.map((r) => r.color))}`,
   ].filter(Boolean).join('\n');
 }
 
@@ -209,8 +277,20 @@ export const HELP = [
   '/ultimos [n] — ultimas rodadas',
   '/status — conexao, atraso e saude do robo',
   '',
+  '<i>Tudo isso tambem da para fazer pelo painel, com o mouse.</i>',
+  '',
+  '<b>Revenda</b>',
+  '/modo publico — oculta nome e gatilho nos alertas',
+  '/modo completo — volta a mostrar a estrategia',
+  '',
   '<b>Cores:</b> P = preto, A = amarelo, B = branco.',
   '<b>Curingas:</b> <code>*</code> qualquer cor, <code>!B</code> nao-branco, <code>P{3}</code> repeticao, <code>P{2,4}</code> faixa.',
+  '',
+  '<b>Por numero</b> (a pedra sorteada, 0 a 14)',
+  '<code>5</code> a pedra 5 · <code>[1,5,9]</code> uma dessas · <code>8-14</code> faixa · <code>!0</code> menos o branco',
+  '<code>/novo pedra 5 apos 5 casas = A G1</code>',
+  'Mistura com cor: <code>/novo 0 P P = A G1</code>',
+  '<i>"apos N casas" = a entrada cai na N-esima rodada depois do gatilho.</i>',
   '',
   '<i>O robo mostra frequencia historica. Nao prevê o proximo giro.</i>',
 ].join('\n');

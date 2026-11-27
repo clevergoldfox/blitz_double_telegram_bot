@@ -1,13 +1,20 @@
 import WebSocket from 'ws';
 import { Color, GameResult } from '../types';
 import { ResultSource, SourceMode, SourceStatus } from './types';
-import { DEFAULT_COLOR_MAP, extractRounds, FieldMap, unwrapSocketFrame } from './parsing';
+import { extractRounds, FieldMap, inflateSocketPayload, unwrapSocketFrame } from './parsing';
 import { Logger } from '../logger';
 
 export interface BlitzConfig {
   /** WebSocket de resultados ao vivo. Sem ele, caimos em polling REST. */
   wsUrl?: string;
-  /** Texto enviado ao abrir a conexao (normalmente um subscribe em JSON). */
+  /**
+   * 'socketio' faz o aperto de mao do socket.io (engine.io v4) e decodifica o
+   * anexo binario deflate; e o que a Blitz usa. 'raw' so escuta frames de texto.
+   */
+  wsProtocol: 'socketio' | 'raw';
+  /** Salas assinadas apos o aperto de mao, ex. ['double_room_1']. */
+  wsRooms: string[];
+  /** Texto enviado ao abrir a conexao, quando wsProtocol = 'raw'. */
   wsSubscribe?: string;
   /** Endpoint de resultados recentes. Usado para backfill e como fallback. */
   restRecentUrl?: string;
@@ -31,6 +38,17 @@ export class BlitzSource extends ResultSource {
   private ws: WebSocket | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
   private watchdog: NodeJS.Timeout | null = null;
+  /**
+   * Ping iniciado por nos.
+   *
+   * Medido contra o servidor da Blitz: ele anuncia pingInterval 25s /
+   * pingTimeout 20s no aperto de mao mas NUNCA envia o ping dele. Quem nao
+   * manda '2' sozinho leva desconexao em ~46s (25+20). Com o ping do cliente a
+   * conexao fica de pe indefinidamente.
+   */
+  private pingTimer: NodeJS.Timeout | null = null;
+  /** Evita assinar a mesma sala duas vezes: o servidor manda '40' repetido. */
+  private subscribed = false;
   private backoffMs = 1_000;
   private reconnects = 0;
   private connected = false;
@@ -65,6 +83,7 @@ export class BlitzSource extends ResultSource {
 
   async stop(): Promise<void> {
     this.stopping = true;
+    this.stopClientPing();
     if (this.watchdog) clearInterval(this.watchdog);
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.watchdog = null;
@@ -101,23 +120,28 @@ export class BlitzSource extends ResultSource {
 
     const ws = new WebSocket(this.cfg.wsUrl, { headers, handshakeTimeout: 15_000 });
     this.ws = ws;
+    this.subscribed = false;
 
     ws.on('open', () => {
       this.connected = true;
       this.backoffMs = 1_000;
       this.detail = 'WebSocket conectado';
       this.log.info('coletor: WebSocket conectado');
-      if (this.cfg.wsSubscribe) ws.send(this.cfg.wsSubscribe);
+      // No socket.io, a assinatura so vale depois do aperto de mao; quem envia
+      // e handleData ao receber o '0{...}' e o '40'.
+      if (this.cfg.wsProtocol === 'raw' && this.cfg.wsSubscribe) ws.send(this.cfg.wsSubscribe);
       // Reconectou: pode ter perdido rounds enquanto estava fora.
       if (this.reconnects > 0 && this.cfg.restRecentUrl) {
         void this.backfill('reconexao');
       }
     });
 
-    ws.on('message', (data: WebSocket.RawData) => this.handleFrame(data.toString()));
+    ws.on('message', (data: WebSocket.RawData) => this.handleData(data));
 
     ws.on('close', (code) => {
       this.connected = false;
+      this.stopClientPing();
+      this.subscribed = false;
       if (this.stopping) return;
       this.detail = `WebSocket caiu (codigo ${code})`;
       this.log.warn({ code }, 'coletor: WebSocket fechou, vai reconectar');
@@ -134,22 +158,88 @@ export class BlitzSource extends ResultSource {
     ws.on('ping', () => ws.pong());
   }
 
-  private handleFrame(raw: string): void {
-    // engine.io: '2' e ping do servidor, responde '3'.
-    if (raw === '2') {
+  private handleData(data: WebSocket.RawData): void {
+    const buf = Buffer.isBuffer(data)
+      ? data
+      : Array.isArray(data)
+        ? Buffer.concat(data)
+        : Buffer.from(data as ArrayBuffer);
+    const text = buf.toString('utf8');
+
+    // engine.io: '2' e ping do servidor, responde '3' ou a conexao cai.
+    if (text === '2') {
       this.ws?.send('3');
       return;
     }
+    if (text === '3') return;
 
-    const payload = unwrapSocketFrame(raw);
-    if (payload === null) return;
+    if (this.cfg.wsProtocol === 'socketio') {
+      // '0{...}' = handshake do engine.io -> conecta no namespace padrao
+      if (text.startsWith('0{')) {
+        this.ws?.send('40');
+        this.startClientPing(text);
+        return;
+      }
+      // '40' = namespace aceito -> agora sim da para assinar as salas
+      if (text.startsWith('40')) {
+        this.subscribeRooms();
+        return;
+      }
+      // anexo binario (deflate cru) com o conteudo de verdade
+      if (buf[0] === 0x04) {
+        const msg = inflateSocketPayload(buf);
+        if (msg !== null) this.ingest(msg);
+        return;
+      }
+    }
 
+    const payload = unwrapSocketFrame(text);
+    if (payload !== null) this.ingest(payload);
+  }
+
+  /**
+   * Liga o ping do cliente usando o pingInterval anunciado no aperto de mao,
+   * com folga de 5s. Sem isso o servidor da Blitz derruba a conexao em ~46s.
+   */
+  private startClientPing(handshake: string): void {
+    this.stopClientPing();
+    let interval = 25_000;
+    try {
+      const cfg = JSON.parse(handshake.slice(1)) as { pingInterval?: number };
+      if (typeof cfg.pingInterval === 'number' && cfg.pingInterval > 0) interval = cfg.pingInterval;
+    } catch {
+      // mantem o padrao
+    }
+    const every = Math.max(5_000, interval - 5_000);
+    this.pingTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) this.ws.send('2');
+    }, every);
+    this.log.info({ every }, 'coletor: ping do cliente ativado');
+  }
+
+  private stopClientPing(): void {
+    if (this.pingTimer) clearInterval(this.pingTimer);
+    this.pingTimer = null;
+  }
+
+  private subscribeRooms(): void {
+    if (this.subscribed) return;
+    this.subscribed = true;
+    const rooms = this.cfg.wsRooms.length > 0 ? this.cfg.wsRooms : ['double_room_1'];
+    for (const room of rooms) {
+      const frame = `420["cmd",${JSON.stringify({ id: 'subscribe', payload: { room } })}]`;
+      this.ws?.send(frame);
+      this.log.info({ room }, 'coletor: sala assinada');
+    }
+    this.detail = `WebSocket conectado, salas: ${rooms.join(', ')}`;
+  }
+
+  private ingest(payload: unknown): void {
     const rounds = extractRounds(payload, {
       fields: this.cfg.fields,
       colorMap: this.cfg.colorMap,
       requireComplete: this.cfg.requireComplete,
     });
-
     for (const r of rounds) this.publish(r);
   }
 
@@ -272,7 +362,12 @@ export class BlitzSource extends ResultSource {
     }
 
     this.lastResultAt = new Date().toISOString();
-    this.lastLatencyMs = Math.max(0, Date.now() - new Date(r.createdAt).getTime());
+    // A rodada da Blitz abre as apostas em created_at e so revela a cor ~15s
+    // depois, em updated_at. Medir o atraso contra created_at daria uns 15s e
+    // faria o robo parecer lento; o numero que importa e quanto tempo passou
+    // desde a revelacao.
+    const referencia = r.revealedAt ?? r.createdAt;
+    this.lastLatencyMs = Math.max(0, Date.now() - new Date(referencia).getTime());
     this.lastRoundId = r.roundId;
     this.lastRoundCreatedAt = r.createdAt;
     this.emitResult(r);

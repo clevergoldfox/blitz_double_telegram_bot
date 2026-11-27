@@ -10,6 +10,29 @@ export function isColor(v: unknown): v is Color {
   return v === 'P' || v === 'A' || v === 'B';
 }
 
+/** Maior pedra do Double: a roleta tem 15 casas, de 0 a 14. */
+export const MAX_ROLL = 14;
+
+/**
+ * Cor da pedra sorteada. E a disposicao fixa da roleta do Double, nao um
+ * detalhe da plataforma: 0 e o branco, 1 a 7 sao amarelos, 8 a 14 sao pretos.
+ * (O mapa em sources/parsing traduz o *codigo* de cor que a casa envia; isto
+ * aqui traduz o numero da pedra, que e sempre o mesmo em qualquer casa.)
+ */
+export function colorOfRoll(roll: number): Color {
+  if (roll === 0) return 'B';
+  return roll <= 7 ? 'A' : 'P';
+}
+
+/**
+ * O minimo que o casador precisa saber de uma rodada.
+ * GameResult satisfaz esta forma, entao o historico do banco serve direto.
+ */
+export interface RoundView {
+  color: Color;
+  roll: number | null;
+}
+
 /**
  * Como o branco e tratado quando sai no lugar da cor de entrada.
  *  - 'gale'    : branco perde a tentativa e avanca para o proximo gale (padrao do mercado)
@@ -31,8 +54,14 @@ export interface GameResult {
   color: Color;
   /** Numero sorteado (0-14 em roletas da familia Blaze). Opcional: nem toda fonte expoe. */
   roll: number | null;
-  /** Momento em que a plataforma fechou o round (ISO 8601). */
+  /** Momento em que a plataforma abriu o round (ISO 8601). */
   createdAt: string;
+  /**
+   * Momento em que a cor foi revelada, quando a plataforma informa (updated_at).
+   * Na Blitz isso acontece ~15s depois de createdAt, e e a referencia correta
+   * para medir atraso de alerta.
+   */
+  revealedAt?: string | null;
   /** true quando o round chegou ao vivo; false quando veio de backfill do historico. */
   live: boolean;
 }
@@ -91,3 +120,14 @@ export interface Scoreboard {
   bestGreenStreak: number;
   worstRedStreak: number;
 }
+
+/**
+ * Quanto o alerta revela sobre a estrategia.
+ *
+ *  - 'completo': nome do padrao e sequencia do gatilho aparecem no alerta.
+ *  - 'publico' : ambos somem, sobra "Sinal #id" com entrada, gale e placar.
+ *
+ * Existe para quem revende o sinal: o assinante precisa saber onde entrar,
+ * mas nao deve conseguir deduzir o padrao e usar por conta propria.
+ */
+export type AlertMode = 'completo' | 'publico';

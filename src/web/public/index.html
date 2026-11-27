@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Painel — Robô Double</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🎯</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ---------- login ---------- -->
+<section id="tela-login" class="login" hidden>
+  <form id="form-login" class="cartao login__cartao">
+    <h1 class="login__titulo">Robô Double</h1>
+    <p class="login__sub">Painel de padrões</p>
+    <label class="campo">
+      <span>Senha</span>
+      <input type="password" id="senha" autocomplete="current-password" required>
+    </label>
+    <button class="botao botao--principal" type="submit">Entrar</button>
+    <p id="erro-login" class="erro" hidden></p>
+  </form>
+</section>
+
+<!-- ---------- painel ---------- -->
+<main id="tela-painel" hidden>
+
+  <header class="topo">
+    <div class="topo__marca">
+      <strong>Robô Double</strong>
+      <span id="fonte-detalhe" class="topo__detalhe"></span>
+    </div>
+    <div class="topo__acoes">
+      <span id="selo-conexao" class="selo">—</span>
+      <span id="selo-armado" class="selo">—</span>
+      <button id="btn-modo" class="selo selo--botao" title="Mostrar ou ocultar a estratégia nos alertas">—</button>
+      <button id="btn-sair" class="botao botao--fantasma">Sair</button>
+    </div>
+  </header>
+
+  <nav class="abas" id="abas">
+    <button class="aba aba--ativa" data-aba="padroes" type="button">Padrões</button>
+    <button class="aba" data-aba="simulador" type="button">Simulador de banca</button>
+  </nav>
+
+  <section class="cartao">
+    <div class="cartao__cabeca">
+      <h2>Últimas rodadas</h2>
+      <span id="total-rodadas" class="discreto"></span>
+    </div>
+    <div id="rodadas" class="rodadas"></div>
+  </section>
+
+  <!-- ====================== aba: padrões ====================== -->
+  <div id="aba-padroes">
+  <section class="colunas">
+
+    <!-- editor -->
+    <div class="cartao">
+      <div class="cartao__cabeca">
+        <h2 id="editor-titulo">Novo padrão</h2>
+        <button id="btn-limpar" class="botao botao--fantasma" hidden>Cancelar edição</button>
+      </div>
+
+      <form id="form-padrao">
+        <label class="campo">
+          <span>Nome <em class="discreto">(opcional)</em></span>
+          <input type="text" id="p-nome" maxlength="60" placeholder="Ex.: Pedra 5 com espera">
+        </label>
+
+        <label class="campo">
+          <span>Gatilho</span>
+          <input type="text" id="p-expr" required placeholder="Ex.: 5 apos 5 casas" autocapitalize="off" autocomplete="off" spellcheck="false">
+        </label>
+
+        <p id="previa-expr" class="previa" hidden></p>
+
+        <div class="atalhos">
+          <button type="button" class="chip chip--p" data-add="P">⚫ preto</button>
+          <button type="button" class="chip chip--a" data-add="A">🟡 amarelo</button>
+          <button type="button" class="chip chip--b" data-add="B">⚪ branco</button>
+          <button type="button" class="chip" data-add="*">? qualquer</button>
+          <button type="button" class="chip" id="btn-pedras">0-14 pedra…</button>
+          <button type="button" class="chip" id="btn-espera">⏱ esperar casas…</button>
+          <button type="button" class="chip chip--apagar" id="btn-apagar-expr">limpar</button>
+        </div>
+
+        <div id="teclado-pedras" class="teclado" hidden></div>
+
+        <div class="grade">
+          <div class="campo">
+            <span>Entrar no</span>
+            <div class="opcoes" id="p-entrada">
+              <label><input type="radio" name="entrada" value="P"><span class="opcao">⚫ Preto</span></label>
+              <label><input type="radio" name="entrada" value="A" checked><span class="opcao">🟡 Amarelo</span></label>
+              <label><input type="radio" name="entrada" value="B"><span class="opcao">⚪ Branco</span></label>
+            </div>
+          </div>
+
+          <div class="campo">
+            <span>Gales</span>
+            <div class="opcoes" id="p-gales">
+              <label><input type="radio" name="gales" value="0"><span class="opcao">sem gale</span></label>
+              <label><input type="radio" name="gales" value="1" checked><span class="opcao">até G1</span></label>
+              <label><input type="radio" name="gales" value="2"><span class="opcao">até G2</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="campo">
+          <span>Quando sair branco</span>
+          <div class="opcoes opcoes--coluna" id="p-branco">
+            <label><input type="radio" name="branco" value="gale" checked><span class="opcao">vai pro gale <em class="discreto">(sem proteção)</em></span></label>
+            <label><input type="radio" name="branco" value="red"><span class="opcao">encerra como RED na hora</span></label>
+            <label><input type="radio" name="branco" value="protect"><span class="opcao">conta como GREEN <em class="discreto">(protegido)</em></span></label>
+          </div>
+        </div>
+
+        <div class="botoes">
+          <button type="button" id="btn-testar" class="botao">Testar no histórico</button>
+          <button type="submit" id="btn-salvar" class="botao botao--principal">Salvar padrão</button>
+        </div>
+        <p id="erro-padrao" class="erro" hidden></p>
+      </form>
+
+      <div id="resultado-teste" class="teste" hidden></div>
+    </div>
+
+    <!-- lista -->
+    <div class="cartao">
+      <div class="cartao__cabeca">
+        <h2>Meus padrões</h2>
+        <span id="placar-geral" class="discreto"></span>
+      </div>
+      <div id="lista" class="lista"></div>
+    </div>
+
+  </section>
+  </div>
+
+  <!-- ====================== aba: simulador ====================== -->
+  <div id="aba-simulador" hidden>
+
+    <section class="cartao">
+      <div class="cartao__cabeca">
+        <h2>Tabela de apostas</h2>
+        <span class="discreto">o valor de cada degrau, do primeiro ao último</span>
+      </div>
+
+      <p class="nota">
+        Monte aqui a sua tabela. O robô entra no <strong>degrau 1</strong> quando o padrão
+        dispara; se perder, sobe para o degrau seguinte. Perder o <strong>último</strong>
+        degrau custa a soma de todos eles.
+      </p>
+
+      <div class="atalhos">
+        <button type="button" class="chip" data-preset="cliente">Tabela de 6 níveis</button>
+        <button type="button" class="chip" data-preset="dobro">Gale clássico (dobra)</button>
+        <button type="button" class="chip" data-preset="seco">Entrada seca (1 degrau)</button>
+      </div>
+
+      <div class="tabela-rolagem">
+        <table class="tabela tabela--escada">
+          <thead>
+            <tr>
+              <th>Degrau</th>
+              <th>Entrada na cor</th>
+              <th>Proteção no branco</th>
+              <th>Acumulado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="escada-corpo"></tbody>
+          <tfoot>
+            <tr>
+              <th colspan="3">A escada inteira custa</th>
+              <th id="escada-total" colspan="2">—</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="botoes">
+        <button type="button" id="btn-degrau-mais" class="botao">+ degrau</button>
+        <button type="button" id="btn-degrau-menos" class="botao botao--fantasma">− degrau</button>
+      </div>
+    </section>
+
+    <section class="colunas">
+
+      <div class="cartao">
+        <div class="cartao__cabeca"><h2>Como operar</h2></div>
+
+        <div class="grade">
+          <label class="campo">
+            <span>Banca inicial (R$)</span>
+            <input type="number" id="s-banca" min="1" step="1" value="100">
+          </label>
+          <label class="campo">
+            <span>Meta do dia (R$)</span>
+            <input type="number" id="s-meta" min="0.01" step="1" value="50">
+          </label>
+        </div>
+
+        <div class="grade">
+          <label class="campo">
+            <span>Opera a partir das <em class="discreto">(hora)</em></span>
+            <input type="number" id="s-hora-ini" min="0" max="23" step="1" placeholder="qualquer">
+          </label>
+          <label class="campo">
+            <span>Para de entrar às <em class="discreto">(hora)</em></span>
+            <input type="number" id="s-hora-fim" min="0" max="23" step="1" placeholder="qualquer">
+          </label>
+        </div>
+
+        <div class="campo">
+          <span>Regras</span>
+          <div class="opcoes opcoes--coluna">
+            <label><input type="checkbox" id="s-parar" checked><span class="opcao">encerrar o dia ao perder a escada <em class="discreto">(recomendado)</em></span></label>
+            <label><input type="checkbox" id="s-uma" checked><span class="opcao">uma escada por vez <em class="discreto">(a tabela usa a banca toda)</em></span></label>
+            <label><input type="checkbox" id="s-reset"><span class="opcao">o branco reinicia a contagem dos padrões</span></label>
+          </div>
+        </div>
+
+        <div class="grade">
+          <label class="campo">
+            <span>Dias de controle</span>
+            <input type="number" id="s-dias" min="0" max="1000" step="1" value="365">
+          </label>
+          <label class="campo">
+            <span>Semente <em class="discreto">(repete o sorteio)</em></span>
+            <input type="number" id="s-seed" min="0" step="1" value="1">
+          </label>
+        </div>
+
+        <div class="campo">
+          <span>Padrões que vão operar</span>
+          <div id="s-padroes" class="opcoes opcoes--coluna"></div>
+        </div>
+
+        <div class="botoes">
+          <button type="button" id="btn-simular" class="botao botao--principal">Simular</button>
+        </div>
+        <p id="erro-sim" class="erro" hidden></p>
+        <p id="sim-andando" class="nota" hidden>Rodando a tabela no histórico e nos dias de controle…</p>
+      </div>
+
+      <div class="cartao">
+        <div class="cartao__cabeca">
+          <h2>A tabela no papel</h2>
+          <span class="discreto">conta fechada, sem simular</span>
+        </div>
+        <div id="teoria" class="teoria">
+          <p class="vazio">Monte a tabela e clique em <strong>Simular</strong>.</p>
+        </div>
+      </div>
+
+    </section>
+
+    <section id="sim-resultado" hidden>
+
+      <div class="cartao">
+        <div class="cartao__cabeca">
+          <h2>Placar de dias</h2>
+          <span class="discreto">histórico real × roleta honesta</span>
+        </div>
+        <div id="sim-placar" class="placar-duplo"></div>
+        <p class="nota">
+          A coluna da direita roda a <strong>mesma tabela</strong> numa roleta comprovadamente
+          justa. Ela responde a pergunta que o histórico sozinho não responde:
+          o resultado foi a estratégia ou foi o período?
+        </p>
+      </div>
+
+      <div class="cartao">
+        <div class="cartao__cabeca">
+          <h2>Saldo no histórico real</h2>
+          <span id="sim-curva-legenda" class="discreto"></span>
+        </div>
+        <div id="sim-curva" class="grafico"></div>
+      </div>
+
+      <div class="cartao">
+        <div class="cartao__cabeca">
+          <h2>Resultado de cada dia</h2>
+          <span class="discreto">cada barra é um dia</span>
+        </div>
+        <div id="sim-dias" class="grafico"></div>
+        <p class="nota" id="sim-dias-nota"></p>
+      </div>
+
+      <section class="colunas">
+        <div class="cartao">
+          <div class="cartao__cabeca">
+            <h2>Dia por dia</h2>
+            <span class="discreto">histórico real</span>
+          </div>
+          <div class="tabela-rolagem tabela-rolagem--alta">
+            <table class="tabela">
+              <thead>
+                <tr><th>Dia</th><th>Entradas</th><th>Resultado</th><th>Melhor</th><th>Fim</th></tr>
+              </thead>
+              <tbody id="sim-sessoes"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="cartao">
+          <div class="cartao__cabeca">
+            <h2>Extrato</h2>
+            <span class="discreto">últimas apostas</span>
+          </div>
+          <div class="tabela-rolagem tabela-rolagem--alta">
+            <table class="tabela">
+              <thead>
+                <tr><th>Quando</th><th>Padrão</th><th>Degrau</th><th>Apostado</th><th>Resultado</th><th>Saldo</th></tr>
+              </thead>
+              <tbody id="sim-extrato"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </section>
+
+  </div>
+
+  <footer class="rodape">
+    O painel mostra <strong>frequência histórica</strong>. Ele não prevê o próximo giro.
+  </footer>
+</main>
+
+<div id="aviso" class="aviso" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

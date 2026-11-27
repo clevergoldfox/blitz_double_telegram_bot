@@ -26,6 +26,8 @@ export function createSource(cfg: Config, log: Logger): ResultSource {
   return new BlitzSource(
     {
       wsUrl: cfg.source.wsUrl,
+      wsProtocol: cfg.source.wsProtocol,
+      wsRooms: cfg.source.wsRooms,
       wsSubscribe: cfg.source.wsSubscribe,
       restRecentUrl: cfg.source.restRecentUrl,
       pollMs: cfg.source.pollMs,

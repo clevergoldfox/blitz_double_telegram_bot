@@ -1,11 +1,21 @@
-import { Color } from '../types';
+import { RoundView } from '../types';
 import { Atom, ParsedPattern, Token } from './grammar';
 
-export function atomMatches(atom: Atom, color: Color): boolean {
+/**
+ * Um atomo olha a cor, a pedra, ou as duas coisas.
+ *
+ * Quando o atomo depende da pedra e a fonte nao informou o numero
+ * (`roll === null`), o resultado e `false` — inclusive na negacao. Dizer
+ * "nao saiu o 5" sem saber o que saiu seria inventar: melhor o padrao nao
+ * disparar do que disparar errado.
+ */
+export function atomMatches(atom: Atom, round: RoundView): boolean {
   switch (atom.kind) {
     case 'any': return true;
-    case 'color': return atom.color === color;
-    case 'not': return !atom.colors.includes(color);
+    case 'color': return atom.color === round.color;
+    case 'not': return !atom.colors.includes(round.color);
+    case 'roll': return round.roll !== null && atom.rolls.includes(round.roll);
+    case 'notRoll': return round.roll !== null && !atom.rolls.includes(round.roll);
   }
 }
 
@@ -20,7 +30,7 @@ export function atomMatches(atom: Atom, color: Color): boolean {
  *
  * @returns quantas rodadas o padrao consumiu, ou null se nao casou.
  */
-export function matchAtEnd(parsed: ParsedPattern, history: readonly Color[]): number | null {
+export function matchAtEnd(parsed: ParsedPattern, history: readonly RoundView[]): number | null {
   const hi = Math.min(parsed.maxLength, history.length);
   for (let len = hi; len >= parsed.minLength; len--) {
     const slice = history.slice(history.length - len);
@@ -30,7 +40,7 @@ export function matchAtEnd(parsed: ParsedPattern, history: readonly Color[]): nu
 }
 
 /** true se os tokens consomem a sequencia inteira, sem sobra de nenhum lado. */
-export function consumesExactly(tokens: readonly Token[], seq: readonly Color[]): boolean {
+export function consumesExactly(tokens: readonly Token[], seq: readonly RoundView[]): boolean {
   // memo[ti][si] = ja sabemos o resultado de (token ti a partir de seq si)?
   const memo = new Map<number, boolean>();
   const key = (ti: number, si: number) => ti * (seq.length + 1) + si;
@@ -43,7 +53,7 @@ export function consumesExactly(tokens: readonly Token[], seq: readonly Color[])
 
     const tok = tokens[ti];
     let ok = false;
-    // Avanca uma repeticao por vez; para assim que uma cor nao casar, pois
+    // Avanca uma repeticao por vez; para assim que uma rodada nao casar, pois
     // repeticoes de um mesmo atomo precisam ser contiguas.
     for (let count = 0; count <= tok.max; count++) {
       if (count > 0) {

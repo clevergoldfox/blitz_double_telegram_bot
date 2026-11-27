@@ -2,9 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parsePattern } from '../src/engine/grammar';
 import { matchAtEnd } from '../src/engine/matcher';
-import { Color } from '../src/types';
+import { Color, colorOfRoll, RoundView } from '../src/types';
 
-const seq = (s: string): Color[] => [...s] as Color[];
+/** Historico so de cores: a pedra nao foi informada pela fonte. */
+const seq = (s: string): RoundView[] => [...s].map((c) => ({ color: c as Color, roll: null }));
+
+/** Historico com as pedras; a cor sai da propria pedra. */
+const pedras = (...ns: number[]): RoundView[] => ns.map((n) => ({ color: colorOfRoll(n), roll: n }));
 
 test('o padrao do cliente casa com a sequencia exata', () => {
   assert.equal(matchAtEnd(parsePattern('P P A P A'), seq('PPAPA')), 5);
